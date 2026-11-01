@@ -1,15 +1,18 @@
-# 最小可验证镜像：只装 Xray，跑 VLESS-WS
-# 目的：先确认 Koyeb 构建链路正常，再逐步加 OpenList。
+# Koyeb 单 service：伪装站 + VLESS-WS 节点
 #
-# 启动后：
-#   https://<app>.koyeb.app/<NODE_PATH> → VLESS-WS
-#   其他路径 → 一个静态占位页
+#   https://<app>.koyeb.app/         → 静态伪装页
+#   https://<app>.koyeb.app/<PATH>   → Xray VLESS-WS
+#
+# 编排：supervisord → render / xray / nginx
+#   xray  :10000（内部）
+#   nginx :8080（对外，Koyeb 网关指向这里）
 
 FROM alpine:3.20
 
 ARG XRAY_VER=v26.10.31
 
-RUN apk add --no-cache curl unzip tzdata ca-certificates supervisor
+RUN apk add --no-cache \
+      curl unzip tzdata ca-certificates supervisor nginx
 
 RUN mkdir -p /opt/xray \
  && curl -fsSL -o /tmp/xray.zip \
@@ -19,6 +22,7 @@ RUN mkdir -p /opt/xray \
  && chmod +x /opt/xray/xray
 
 COPY xray.tpl.json     /opt/xray/config.tpl.json
+COPY nginx.conf        /etc/nginx/nginx.conf
 COPY entrypoint.sh     /entrypoint.sh
 COPY supervisord.conf  /etc/supervisord.conf
 COPY site/index.html   /app/site/index.html
