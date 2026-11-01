@@ -4,6 +4,7 @@
 #   https://<app>.koyeb.app/<PATH>   → Xray VLESS-WS
 #
 # 编排：supervisord → render / xray / nginx
+#   render: 生成 xray 配置 + nginx 的 location 块
 #   xray  :10000（内部）
 #   nginx :8080（对外，Koyeb 网关指向这里）
 
@@ -21,11 +22,11 @@ RUN mkdir -p /opt/xray \
  && rm -f /tmp/xray.zip \
  && chmod +x /opt/xray/xray
 
-COPY xray.tpl.json     /opt/xray/config.tpl.json
-COPY nginx.conf        /etc/nginx/nginx.conf
-COPY entrypoint.sh     /entrypoint.sh
-COPY supervisord.conf  /etc/supervisord.conf
-COPY site/index.html   /app/site/index.html
+COPY xray.tpl.json       /opt/xray/config.tpl.json
+COPY nginx.conf          /etc/nginx/nginx.conf.tpl
+COPY entrypoint.sh       /entrypoint.sh
+COPY supervisord.conf    /etc/supervisord.conf
+COPY site/index.html     /app/site/index.html
 RUN chmod +x /entrypoint.sh
 
 ENV TZ=Asia/Shanghai \
