@@ -1,30 +1,16 @@
-# 合并镜像：OpenList（伪装站）+ Xray（VLESS-WS 节点）
+# 最小可验证镜像：只装 Xray，跑 VLESS-WS
+# 目的：先确认 Koyeb 构建链路正常，再逐步加 OpenList。
 #
-# Koyeb 免费层只有 1 个 service，且不支持原始 TCP 端口，
-# 但 HTTP 端口原生支持 WebSocket —— 所以用 VLESS-WS。
-#
-#   https://<app>.koyeb.app/         → OpenList（伪装站 / 网盘）
-#   https://<app>.koyeb.app/<PATH>   → Xray VLESS-WS 节点
-#
-# 敏感配置（UUID / PATH / 数据库密码）全部从环境变量注入。
+# 启动后：
+#   https://<app>.koyeb.app/<NODE_PATH> → VLESS-WS
+#   其他路径 → 一个静态占位页
 
 FROM alpine:3.20
 
-ARG OPENLIST_VER=v4.2.9
 ARG XRAY_VER=v26.10.31
 
-RUN apk add --no-cache \
-      curl unzip tzdata ca-certificates supervisor nginx bash libstdc++
+RUN apk add --no-cache curl unzip tzdata ca-certificates supervisor
 
-# ---------- OpenList（tar 里只有一个 openlist 文件）----------
-RUN mkdir -p /opt/openlist/data \
- && curl -fsSL -o /tmp/ol.tar.gz \
-      "https://github.com/OpenListTeam/OpenList/releases/download/${OPENLIST_VER}/openlist-linux-musl-amd64-lite.tar.gz" \
- && tar -xzf /tmp/ol.tar.gz -C /opt/openlist \
- && rm -f /tmp/ol.tar.gz \
- && chmod +x /opt/openlist/openlist
-
-# ---------- Xray ----------
 RUN mkdir -p /opt/xray \
  && curl -fsSL -o /tmp/xray.zip \
       "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VER}/Xray-linux-64.zip" \
@@ -32,25 +18,15 @@ RUN mkdir -p /opt/xray \
  && rm -f /tmp/xray.zip \
  && chmod +x /opt/xray/xray
 
-# ---------- 用户与目录 ----------
-RUN addgroup -g 1001 openlist \
- && adduser -D -u 1001 -G openlist openlist \
- && mkdir -p /tmp/temp /tmp/bleve \
- && chown -R openlist:openlist /opt/openlist /tmp/temp /tmp/bleve
-
-# ---------- 配置 ----------
 COPY xray.tpl.json     /opt/xray/config.tpl.json
-COPY nginx.conf        /etc/nginx/nginx.conf
-COPY entrypoint.sh     /entrypoint-relay.sh
+COPY entrypoint.sh     /entrypoint.sh
 COPY supervisord.conf  /etc/supervisord.conf
-RUN chmod +x /entrypoint-relay.sh
+COPY site/index.html   /app/site/index.html
+RUN chmod +x /entrypoint.sh
 
 ENV TZ=Asia/Shanghai \
-    UMASK=022 \
-    DB_PORT=5432 \
-    DB_NAME=postgres \
-    DB_PREFIX=x_ \
-    DB_SSLMODE=require
+    NODE_UUID=2a7108f4-b462-4d6d-a5f5-d611aef9c35a \
+    NODE_PATH=/fe82f69e
 
 EXPOSE 8080
 
