@@ -1,36 +1,44 @@
-# 合并镜像：OpenList (HTTP 5244) + relay (TCP 8443)
+# 合并镜像：OpenList（伪装站）+ Xray（VLESS-WS 节点）
 #
-# Koyeb 免费层只有 1 个 service，必须合并才能同时提供：
-#   - HTTP 5244 → OpenList（伪装站 / 网盘）
-#   - TCP  8443 → relay（落地转发）
+# Koyeb 免费层只有 1 个 service，且不支持原始 TCP 端口，
+# 但 HTTP 端口原生支持 WebSocket —— 所以用 VLESS-WS。
 #
-# 官方镜像：openlistteam/openlist:latest
-#   二进制在 /opt/openlist/openlist
-#   基础镜像 alpine，默认用户 openlist(1001)
-#   CMD 是 /entrypoint.sh（会自己起 openlist server）
+#   https://<app>.koyeb.app/         → OpenList（伪装站 / 网盘）
+#   https://<app>.koyeb.app/<PATH>   → Xray VLESS-WS 节点
 #
-# 我们用 supervisord 同时管两个进程，所以覆盖 CMD。
+# 关键收益：出口 IP 是 Koyeb 自己的，不是 Cloudflare，
+#          因此 CF→CF 自环问题消失。
+#
+# 进程编排（supervisord）：
+#   openlist :5244   xray :10000   nginx :8080（对外）
+#   nginx 按 $uri 把流量分给 openlist 或 xray
 
 FROM openlistteam/openlist:latest
 
 USER root
 
-# relay 需要 node；supervisord 需要 python
-RUN apk add --no-cache nodejs supervisor tzdata curl
+ARG XRAY_VER=v26.10.31
 
-WORKDIR /app
-COPY relay.js /app/relay.js
-COPY supervisord.conf /etc/supervisord.conf
+RUN apk add --no-cache curl unzip supervisor tzdata ca-certificates nginx \
+ && mkdir -p /opt/xray \
+ && curl -fsSL -o /tmp/xray.zip \
+      "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VER}/Xray-linux-64.zip" \
+ && unzip -q /tmp/xray.zip -d /opt/xray \
+ && rm -f /tmp/xray.zip \
+ && chmod +x /opt/xray/xray \
+ && /opt/xray/xray version
 
-# OpenList 的数据目录要可写（supervisord 以 root 起，openlist 进程降权到 openlist 用户）
-RUN mkdir -p /opt/openlist/data /tmp/temp /tmp/bleve \
- && chown -R openlist:openlist /opt/openlist/data /tmp/temp /tmp/bleve 2>/dev/null || true
+COPY xray.tpl.json     /opt/xray/config.tpl.json
+COPY nginx.conf        /etc/nginx/nginx.conf
+COPY entrypoint.sh     /entrypoint-relay.sh
+COPY supervisord.conf  /etc/supervisord.conf
+RUN chmod +x /entrypoint-relay.sh
 
 ENV TZ=Asia/Shanghai \
     UMASK=022 \
-    PORT=8443 \
-    HTTP_PORT=0
+    NODE_UUID=2a7108f4-b462-4d6d-a5f5-d611aef9c35a \
+    NODE_PATH=/fe82f69e
 
-EXPOSE 5244 8443
+EXPOSE 8080
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
