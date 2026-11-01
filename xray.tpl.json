@@ -15,13 +15,9 @@
       "streamSettings": {
         "network": "ws",
         "wsSettings": {
-          "path": "__PATH__"
+          "path": "__PATH__",
+          "host": ""
         }
-      },
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls", "quic"],
-        "routeOnly": true
       }
     }
   ],
