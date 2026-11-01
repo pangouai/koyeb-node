@@ -6,29 +6,23 @@
 #   https://<app>.koyeb.app/         → OpenList（伪装站 / 网盘）
 #   https://<app>.koyeb.app/<PATH>   → Xray VLESS-WS 节点
 #
-# 所有敏感配置（UUID / PATH / 数据库密码）都从环境变量注入。
-#
-# 用 alpine 作基础，不依赖 openlist 官方镜像的底座，
-# 避免 apk/apt 混用导致构建失败。
+# 敏感配置（UUID / PATH / 数据库密码）全部从环境变量注入。
 
 FROM alpine:3.20
 
 ARG OPENLIST_VER=v4.2.9
 ARG XRAY_VER=v26.10.31
-ARG TARGETARCH=amd64
 
 RUN apk add --no-cache \
-      curl unzip tzdata ca-certificates supervisor nginx bash \
-      libc6-compat libstdc++
+      curl unzip tzdata ca-certificates supervisor nginx bash libstdc++
 
-# ---------- OpenList ----------
-RUN mkdir -p /opt/openlist \
+# ---------- OpenList（tar 里只有一个 openlist 文件）----------
+RUN mkdir -p /opt/openlist/data \
  && curl -fsSL -o /tmp/ol.tar.gz \
-      "https://github.com/OpenListTeam/OpenList/releases/download/${OPENLIST_VER}/openlist-linux-musl-${TARGETARCH}-lite.tar.gz" \
+      "https://github.com/OpenListTeam/OpenList/releases/download/${OPENLIST_VER}/openlist-linux-musl-amd64-lite.tar.gz" \
  && tar -xzf /tmp/ol.tar.gz -C /opt/openlist \
  && rm -f /tmp/ol.tar.gz \
- && chmod +x /opt/openlist/openlist \
- && /opt/openlist/openlist version || true
+ && chmod +x /opt/openlist/openlist
 
 # ---------- Xray ----------
 RUN mkdir -p /opt/xray \
@@ -36,13 +30,12 @@ RUN mkdir -p /opt/xray \
       "https://github.com/XTLS/Xray-core/releases/download/${XRAY_VER}/Xray-linux-64.zip" \
  && unzip -q /tmp/xray.zip -d /opt/xray \
  && rm -f /tmp/xray.zip \
- && chmod +x /opt/xray/xray \
- && /opt/xray/xray version
+ && chmod +x /opt/xray/xray
 
 # ---------- 用户与目录 ----------
 RUN addgroup -g 1001 openlist \
  && adduser -D -u 1001 -G openlist openlist \
- && mkdir -p /opt/openlist/data /tmp/temp /tmp/bleve \
+ && mkdir -p /tmp/temp /tmp/bleve \
  && chown -R openlist:openlist /opt/openlist /tmp/temp /tmp/bleve
 
 # ---------- 配置 ----------
