@@ -6,8 +6,8 @@
 #   https://<app>.koyeb.app/         → OpenList（伪装站 / 网盘）
 #   https://<app>.koyeb.app/<PATH>   → Xray VLESS-WS 节点
 #
-# 关键收益：出口 IP 是 Koyeb 自己的，不是 Cloudflare，
-#          因此 CF→CF 自环问题消失。
+# 所有敏感配置（UUID / PATH / 数据库密码）都从环境变量注入，
+# 镜像本身不含任何密钥，改配置无需重新构建。
 #
 # 进程编排（supervisord）：
 #   openlist :5244   xray :10000   nginx :8080（对外）
@@ -32,12 +32,16 @@ COPY xray.tpl.json     /opt/xray/config.tpl.json
 COPY nginx.conf        /etc/nginx/nginx.conf
 COPY entrypoint.sh     /entrypoint-relay.sh
 COPY supervisord.conf  /etc/supervisord.conf
-RUN chmod +x /entrypoint-relay.sh
+RUN chmod +x /entrypoint-relay.sh \
+ && mkdir -p /tmp/temp /tmp/bleve
 
+# 仅保留非敏感默认值；密钥一律在 Koyeb 环境变量里设置
 ENV TZ=Asia/Shanghai \
     UMASK=022 \
-    NODE_UUID=2a7108f4-b462-4d6d-a5f5-d611aef9c35a \
-    NODE_PATH=/fe82f69e
+    DB_PORT=5432 \
+    DB_NAME=postgres \
+    DB_PREFIX=x_ \
+    DB_SSLMODE=require
 
 EXPOSE 8080
 
